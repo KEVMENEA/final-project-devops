@@ -1,0 +1,24 @@
+---
+- name: Destroy remaining Project One network infrastructure
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Delete DevOps subnet
+      google.cloud.gcp_compute_subnetwork:
+        name: "{{ gcp_subnet }}"
+        region: "{{ gcp_region }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        ip_cidr_range: "{{ gcp_subnet_cidr }}"
+        network:
+          name: "{{ gcp_network }}"
+        state: absent
+
+    - name: Delete DevOps VPC network
+      google.cloud.gcp_compute_network:
+        name: "{{ gcp_network }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent

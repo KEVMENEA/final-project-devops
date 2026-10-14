@@ -1,0 +1,50 @@
+---
+- name: Configure all Project One servers
+  hosts: all
+  become: true
+
+  roles:
+    - common
+    - docker
+    - portainer
+
+- name: Configure Jenkins server
+  hosts: jenkins
+  become: true
+
+  roles:
+    - jenkins
+    - role: reverse_proxy
+      vars:
+        proxy_domain: "{{ jenkins_domain }}"
+        proxy_port: 8080
+
+- name: Configure SonarQube server
+  hosts: sonarqube
+  become: true
+
+  roles:
+    - sonarqube
+    - role: reverse_proxy
+      vars:
+        proxy_domain: "{{ sonarqube_domain }}"
+        proxy_port: 9000
+
+- name: Configure Nexus server
+  hosts: nexus
+  become: true
+
+  roles:
+    - nexus
+
+- name: Configure Nexus server
+  hosts: nexus
+  become: true
+
+  roles:
+    - nexus
+
+    - role: reverse_proxy
+      vars:
+        proxy_domain: "{{ nexus_domain }}"
+        proxy_port: 8081

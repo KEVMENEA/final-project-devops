@@ -1,0 +1,247 @@
+---
+- name: Provision Project One infrastructure on Google Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - ../inventories/production/group_vars/all.yml
+
+  tasks:
+
+    # ==================================================
+    # VPC Network
+    # ==================================================
+    - name: Create DevOps VPC network
+      google.cloud.gcp_compute_network:
+        name: "{{ gcp_network }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        auto_create_subnetworks: false
+        routing_config:
+          routing_mode: REGIONAL
+        state: present
+      register: devops_network
+
+    # ==================================================
+    # Subnet
+    # ==================================================
+    - name: Create DevOps subnet
+      google.cloud.gcp_compute_subnetwork:
+        name: "{{ gcp_subnet }}"
+        project: "{{ gcp_project }}"
+        region: "{{ gcp_region }}"
+        auth_kind: application
+        network: "{{ devops_network }}"
+        ip_cidr_range: "{{ gcp_subnet_cidr }}"
+        state: present
+      register: devops_subnet
+
+    # ==================================================
+    # SSH Firewall
+    # ==================================================
+    - name: Allow SSH only from my public IP
+      google.cloud.gcp_compute_firewall:
+        name: devops-allow-ssh
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        network: "{{ devops_network }}"
+        direction: INGRESS
+        allowed:
+          - ip_protocol: tcp
+            ports:
+              - "22"
+        source_ranges:
+          - "{{ ssh_allowed_cidr }}"
+        target_tags:
+          - devops-server
+        state: present
+
+    # ==================================================
+    # HTTP and HTTPS Firewall
+    # ==================================================
+    - name: Allow HTTP and HTTPS from the Internet
+      google.cloud.gcp_compute_firewall:
+        name: devops-allow-web
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        network: "{{ devops_network }}"
+        direction: INGRESS
+        allowed:
+          - ip_protocol: tcp
+            ports:
+              - "80"
+              - "443"
+        source_ranges:
+          - "0.0.0.0/0"
+        target_tags:
+          - devops-server
+        state: present
+
+    # ==================================================
+    # Static IP Addresses
+    # ==================================================
+    # ==================================================
+    # IAP SSH Firewall
+    # ==================================================
+    - name: Allow SSH through Google IAP
+      google.cloud.gcp_compute_firewall:
+        name: devops-allow-ssh-iap
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        network: "{{ devops_network }}"
+        direction: INGRESS
+        allowed:
+          - ip_protocol: tcp
+            ports:
+              - "22"
+        source_ranges:
+          - "35.235.240.0/20"
+        target_tags:
+          - devops-server
+        state: present
+
+    - name: Reserve Jenkins static IP
+      google.cloud.gcp_compute_address:
+        name: "{{ jenkins_ip_name }}"
+        project: "{{ gcp_project }}"
+        region: "{{ gcp_region }}"
+        auth_kind: application
+        state: present
+      register: jenkins_address
+
+    - name: Reserve SonarQube static IP
+      google.cloud.gcp_compute_address:
+        name: "{{ sonarqube_ip_name }}"
+        project: "{{ gcp_project }}"
+        region: "{{ gcp_region }}"
+        auth_kind: application
+        state: present
+      register: sonarqube_address
+
+    - name: Reserve Nexus static IP
+      google.cloud.gcp_compute_address:
+        name: "{{ nexus_ip_name }}"
+        project: "{{ gcp_project }}"
+        region: "{{ gcp_region }}"
+        auth_kind: application
+        state: present
+      register: nexus_address
+
+    # ==================================================
+    # Display Static IP Addresses
+    # ==================================================
+    - name: Display reserved static IP addresses
+      ansible.builtin.debug:
+        msg:
+          - "Jenkins IP: {{ jenkins_address.address }}"
+          - "SonarQube IP: {{ sonarqube_address.address }}"
+          - "Nexus IP: {{ nexus_address.address }}"
+
+    # ==================================================
+    # Jenkins VM
+    # ==================================================
+    - name: Create Jenkins VM
+      google.cloud.gcp_compute_instance:
+        name: "{{ jenkins_vm_name }}"
+        project: "{{ gcp_project }}"
+        zone: "{{ gcp_zone }}"
+        auth_kind: application
+        machine_type: "{{ jenkins_machine_type }}"
+
+        disks:
+          - boot: true
+            auto_delete: true
+            initialize_params:
+              disk_size_gb: "{{ vm_disk_size_gb }}"
+              source_image: "projects/{{ vm_image_project }}/global/images/family/{{ vm_image_family }}"
+
+        network_interfaces:
+          - network: "{{ devops_network }}"
+            subnetwork: "{{ devops_subnet }}"
+            access_configs:
+              - name: External NAT
+                type: ONE_TO_ONE_NAT
+                nat_ip: "{{ jenkins_address }}"
+
+        tags:
+          items:
+            - devops-server
+
+        metadata:
+          enable-oslogin: "TRUE"
+
+        state: present
+      register: jenkins_instance
+
+    # ==================================================
+    # 10. SonarQube VM
+    # ==================================================
+    - name: Create SonarQube VM
+      google.cloud.gcp_compute_instance:
+        name: "{{ sonarqube_vm_name }}"
+        project: "{{ gcp_project }}"
+        zone: "{{ gcp_zone }}"
+        auth_kind: application
+        machine_type: "{{ sonarqube_machine_type }}"
+
+        disks:
+          - boot: true
+            auto_delete: true
+            initialize_params:
+              disk_size_gb: "{{ vm_disk_size_gb }}"
+              source_image: "projects/{{ vm_image_project }}/global/images/family/{{ vm_image_family }}"
+
+        network_interfaces:
+          - network: "{{ devops_network }}"
+            subnetwork: "{{ devops_subnet }}"
+            access_configs:
+              - name: External NAT
+                type: ONE_TO_ONE_NAT
+                nat_ip: "{{ sonarqube_address }}"
+
+        tags:
+          items:
+            - devops-server
+
+        metadata:
+          enable-oslogin: "TRUE"
+
+        state: present
+      register: sonarqube_instance
+
+    # ==================================================
+    # 11. Nexus VM
+    # ==================================================
+    - name: Create Nexus VM
+      google.cloud.gcp_compute_instance:
+        name: "{{ nexus_vm_name }}"
+        project: "{{ gcp_project }}"
+        zone: "{{ gcp_zone }}"
+        auth_kind: application
+        machine_type: "{{ nexus_machine_type }}"
+
+        disks:
+          - boot: true
+            auto_delete: true
+            initialize_params:
+              disk_size_gb: "{{ vm_disk_size_gb }}"
+              source_image: "projects/{{ vm_image_project }}/global/images/family/{{ vm_image_family }}"
+
+        network_interfaces:
+          - network: "{{ devops_network }}"
+            subnetwork: "{{ devops_subnet }}"
+            access_configs:
+              - name: External NAT
+                type: ONE_TO_ONE_NAT
+                nat_ip: "{{ nexus_address }}"
+
+        tags:
+          items:
+            - devops-server
+
+        metadata:
+          enable-oslogin: "TRUE"
+
+        state: present
+      register: nexus_instance

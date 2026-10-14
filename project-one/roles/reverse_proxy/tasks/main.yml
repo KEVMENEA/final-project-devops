@@ -1,0 +1,51 @@
+---
+- name: Install NGINX and Certbot
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - certbot
+      - python3-certbot-nginx
+    state: present
+    update_cache: true
+
+- name: Create NGINX reverse proxy configuration
+  ansible.builtin.template:
+    src: reverse-proxy.conf.j2
+    dest: "/etc/nginx/sites-available/{{ proxy_domain }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable NGINX site
+  ansible.builtin.file:
+    src: "/etc/nginx/sites-available/{{ proxy_domain }}"
+    dest: "/etc/nginx/sites-enabled/{{ proxy_domain }}"
+    state: link
+
+- name: Remove default NGINX site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Test NGINX configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+
+- name: Enable and restart NGINX
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: restarted
+
+- name: Obtain HTTPS certificate with Certbot
+  ansible.builtin.command:
+    cmd: >
+      certbot --nginx
+      -d {{ proxy_domain }}
+      --non-interactive
+      --agree-tos
+      --register-unsafely-without-email
+      --redirect
+  args:
+    creates: "/etc/letsencrypt/live/{{ proxy_domain }}/fullchain.pem"

@@ -1,0 +1,30 @@
+# Ansible
+*.retry
+.ansible/
+
+# Secrets / credentials
+*.pem
+*.key
+*.crt
+*.p12
+*.json
+.env
+.env.*
+
+# Terraform if added later
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Editors
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+*.tmp

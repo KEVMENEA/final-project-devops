@@ -1,0 +1,66 @@
+---
+# ==========================================
+# Google Cloud Configuration
+# ==========================================
+gcp_project: "cs-project-huenwcu3"
+gcp_region: "asia-southeast2"
+gcp_zone: "asia-southeast2-b"
+
+# ==========================================
+# Network Configuration
+# ==========================================
+gcp_network: "devops-network"
+gcp_subnet: "devops-subnet"
+gcp_subnet_cidr: "10.10.0.0/24"
+
+# ==========================================
+# VM Configuration
+# ==========================================
+vm_image_project: "ubuntu-os-cloud"
+vm_image_family: "ubuntu-2404-lts-amd64"
+vm_disk_size_gb: 30
+
+# ==========================================
+# Jenkins
+# ==========================================
+jenkins_vm_name: "jenkins-server"
+jenkins_machine_type: "e2-medium"
+jenkins_domain: "jenkins.meneakevit.store"
+jenkins_ip_name: "jenkins-static-ip"
+
+# ==========================================
+# SonarQube
+# ==========================================
+sonarqube_vm_name: "sonarqube-server"
+sonarqube_machine_type: "e2-standard-2"
+sonarqube_domain: "sonarqube.meneakevit.store"
+sonarqube_ip_name: "sonarqube-static-ip"
+
+# ==========================================
+# Nexus
+# ==========================================
+nexus_vm_name: "nexus-server"
+nexus_machine_type: "e2-medium"
+nexus_domain: "nexus.meneakevit.store"
+nexus_ip_name: "nexus-static-ip"
+
+# ==========================================
+# Ansible / SSH
+# ==========================================
+ansible_user: "neachanja_gmail_com"
+
+# IMPORTANT:
+# Replace this value with your real public IP followed by /32
+ssh_allowed_cidr: "36.36.204.46/32"
+
+# ==========================================
+# Common packages
+# ==========================================
+required_packages:
+  - git
+  - curl
+  - wget
+  - tree
+  - unzip
+  - vim
+  - htop

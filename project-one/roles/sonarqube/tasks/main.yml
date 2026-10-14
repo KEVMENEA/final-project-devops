@@ -1,0 +1,31 @@
+---
+- name: Configure SonarQube vm.max_map_count
+  ansible.posix.sysctl:
+    name: vm.max_map_count
+    value: "524288"
+    state: present
+    reload: true
+
+- name: Configure SonarQube fs.file-max
+  ansible.posix.sysctl:
+    name: fs.file-max
+    value: "131072"
+    state: present
+    reload: true
+
+- name: Create SonarQube directory
+  ansible.builtin.file:
+    path: /opt/sonarqube
+    state: directory
+    mode: "0755"
+
+- name: Create SonarQube Docker Compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/sonarqube/docker-compose.yml
+    mode: "0644"
+
+- name: Start SonarQube stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/sonarqube
+    state: present
