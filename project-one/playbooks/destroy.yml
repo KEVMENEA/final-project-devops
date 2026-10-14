@@ -1,10 +1,79 @@
 ---
-- name: Destroy remaining Project One network infrastructure
+- name: Destroy Project One GCP infrastructure
   hosts: localhost
   connection: local
   gather_facts: false
 
   tasks:
+    - name: Delete Jenkins VM
+      google.cloud.gcp_compute_instance:
+        name: "{{ jenkins_vm_name }}"
+        zone: "{{ gcp_zone }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete SonarQube VM
+      google.cloud.gcp_compute_instance:
+        name: "{{ sonarqube_vm_name }}"
+        zone: "{{ gcp_zone }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete Nexus VM
+      google.cloud.gcp_compute_instance:
+        name: "{{ nexus_vm_name }}"
+        zone: "{{ gcp_zone }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete Jenkins static IP
+      google.cloud.gcp_compute_address:
+        name: "{{ jenkins_ip_name }}"
+        region: "{{ gcp_region }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete SonarQube static IP
+      google.cloud.gcp_compute_address:
+        name: "{{ sonarqube_ip_name }}"
+        region: "{{ gcp_region }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete Nexus static IP
+      google.cloud.gcp_compute_address:
+        name: "{{ nexus_ip_name }}"
+        region: "{{ gcp_region }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete public SSH firewall rule
+      google.cloud.gcp_compute_firewall:
+        name: devops-allow-ssh
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete IAP SSH firewall rule
+      google.cloud.gcp_compute_firewall:
+        name: devops-allow-ssh-iap
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
+    - name: Delete web firewall rule
+      google.cloud.gcp_compute_firewall:
+        name: devops-allow-web
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        state: absent
+
     - name: Delete DevOps subnet
       google.cloud.gcp_compute_subnetwork:
         name: "{{ gcp_subnet }}"
