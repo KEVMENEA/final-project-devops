@@ -1,0 +1,40 @@
+---
+- name: Destroy Project Two GCP infrastructure
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    gcp_project: cs-project-huenwcu3
+    gcp_zone: asia-southeast2-b
+    gcp_region: asia-southeast2
+
+    instances:
+      - k8s-cp01
+      - k8s-cp02
+      - k8s-cp03
+      - k8s-worker01
+      - k8s-worker02
+      - k8s-worker03
+
+  tasks:
+    - name: Delete Kubernetes instances
+      google.cloud.gcp_compute_instance:
+        name: "{{ item }}"
+        zone: "{{ gcp_zone }}"
+        project: "{{ gcp_project }}"
+        state: absent
+      loop: "{{ instances }}"
+
+    - name: Delete Kubernetes subnet
+      google.cloud.gcp_compute_subnetwork:
+        name: k8s-subnet
+        region: "{{ gcp_region }}"
+        project: "{{ gcp_project }}"
+        state: absent
+
+    - name: Delete Kubernetes VPC
+      google.cloud.gcp_compute_network:
+        name: k8s-network
+        project: "{{ gcp_project }}"
+        state: absent
