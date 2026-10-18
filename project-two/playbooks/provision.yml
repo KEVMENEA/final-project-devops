@@ -1,0 +1,117 @@
+---
+- name: Provision Project Two Kubernetes infrastructure
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Create Kubernetes VPC
+      google.cloud.gcp_compute_network:
+        name: "{{ gcp_network }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        auto_create_subnetworks: false
+        routing_config:
+          routing_mode: REGIONAL
+        state: present
+
+    - name: Create Kubernetes subnet
+      google.cloud.gcp_compute_subnetwork:
+        name: "{{ gcp_subnet }}"
+        region: "{{ gcp_region }}"
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        ip_cidr_range: "{{ gcp_subnet_cidr }}"
+        network:
+          selfLink: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/global/networks/{{ gcp_network }}"
+        state: present
+
+    - name: Allow internal Kubernetes traffic
+      google.cloud.gcp_compute_firewall:
+        name: k8s-allow-internal
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        network:
+          selfLink: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/global/networks/{{ gcp_network }}"
+        source_ranges:
+          - "{{ gcp_subnet_cidr }}"
+        allowed:
+          - ip_protocol: tcp
+          - ip_protocol: udp
+          - ip_protocol: icmp
+        state: present
+
+    - name: Allow SSH through Google IAP
+      google.cloud.gcp_compute_firewall:
+        name: k8s-allow-iap-ssh
+        project: "{{ gcp_project }}"
+        auth_kind: application
+        network:
+          selfLink: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/global/networks/{{ gcp_network }}"
+        source_ranges:
+          - 35.235.240.0/20
+        target_tags:
+          - k8s-node
+        allowed:
+          - ip_protocol: tcp
+            ports:
+              - "22"
+        state: present
+
+    - name: Create control-plane nodes
+      google.cloud.gcp_compute_instance:
+        name: "{{ item.name }}"
+        project: "{{ gcp_project }}"
+        zone: "{{ gcp_zone }}"
+        auth_kind: application
+        machine_type: "{{ item.machine_type }}"
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              source_image: "projects/{{ gcp_image_project }}/global/images/family/{{ gcp_image_family }}"
+              disk_size_gb: 30
+        network_interfaces:
+          - network:
+              selfLink: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/global/networks/{{ gcp_network }}"
+            subnetwork:
+              selfLink: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/regions/{{ gcp_region }}/subnetworks/{{ gcp_subnet }}"
+            network_ip: "{{ item.ip }}"
+        tags:
+          items:
+            - k8s-node
+        metadata:
+          enable-oslogin: "TRUE"
+        state: present
+      loop: "{{ control_planes }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Create worker nodes
+      google.cloud.gcp_compute_instance:
+        name: "{{ item.name }}"
+        project: "{{ gcp_project }}"
+        zone: "{{ gcp_zone }}"
+        auth_kind: application
+        machine_type: "{{ item.machine_type }}"
+        disks:
+          - auto_delete: true
+            boot: true
+            initialize_params:
+              source_image: "projects/{{ gcp_image_project }}/global/images/family/{{ gcp_image_family }}"
+              disk_size_gb: 30
+        network_interfaces:
+          - network:
+              selfLink: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/global/networks/{{ gcp_network }}"
+            subnetwork:
+              selfLink: "https://www.googleapis.com/compute/v1/projects/{{ gcp_project }}/regions/{{ gcp_region }}/subnetworks/{{ gcp_subnet }}"
+            network_ip: "{{ item.ip }}"
+        tags:
+          items:
+            - k8s-node
+        metadata:
+          enable-oslogin: "TRUE"
+        state: present
+      loop: "{{ workers }}"
+      loop_control:
+        label: "{{ item.name }}"

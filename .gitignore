@@ -28,3 +28,10 @@ Thumbs.db
 # Temporary files
 *.log
 *.tmp
+
+# Project Two generated dependencies
+project-two/kubespray/
+project-two/kubespray-venv/
+
+# Backup files
+*.bak
