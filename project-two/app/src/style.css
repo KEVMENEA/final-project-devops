@@ -1,0 +1,27 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #111827;
+  color: white;
+}
+
+main {
+  text-align: center;
+  margin-top: 15vh;
+}
+
+h1 {
+  font-size: 3rem;
+}
+
+h2 {
+  font-weight: normal;
+}
+
+.status {
+  display: inline-block;
+  margin-top: 30px;
+  padding: 15px 25px;
+  background: #065f46;
+  border-radius: 8px;
+}
