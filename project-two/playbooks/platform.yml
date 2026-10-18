@@ -1,0 +1,159 @@
+---
+- name: Install Kubernetes platform components
+  hosts: kube_control_plane[0]
+  become: true
+  vars:
+    domain: meneakevit.store
+    letsencrypt_email: neachanja@gmail.com
+
+  tasks:
+    - name: Install Helm
+      ansible.builtin.shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Add Helm repositories
+      ansible.builtin.shell: |
+        helm repo add traefik https://traefik.github.io/charts --force-update
+        helm repo add jetstack https://charts.jetstack.io --force-update
+        helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/ --force-update
+        helm repo add argo https://argoproj.github.io/argo-helm --force-update
+        helm repo update
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Install Traefik
+      ansible.builtin.shell: |
+        helm upgrade --install traefik traefik/traefik \
+          --namespace traefik \
+          --create-namespace \
+          --set deployment.kind=DaemonSet \
+          --set 'nodeSelector.node-role\.kubernetes\.io/worker=worker' \
+          --set ports.web.hostPort=80 \
+          --set ports.websecure.hostPort=443
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Install cert-manager
+      ansible.builtin.shell: |
+        helm upgrade --install cert-manager jetstack/cert-manager \
+          --namespace cert-manager \
+          --create-namespace \
+          --set crds.enabled=true
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Create Let's Encrypt ClusterIssuer
+      ansible.builtin.shell: |
+        cat <<YAML | kubectl apply -f -
+        apiVersion: cert-manager.io/v1
+        kind: ClusterIssuer
+        metadata:
+          name: letsencrypt-prod
+        spec:
+          acme:
+            email: {{ letsencrypt_email }}
+            server: https://acme-v02.api.letsencrypt.org/directory
+            privateKeySecretRef:
+              name: letsencrypt-prod-account-key
+            solvers:
+              - http01:
+                  ingress:
+                    ingressClassName: traefik
+        YAML
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Install Headlamp
+      ansible.builtin.shell: |
+        helm upgrade --install headlamp headlamp/headlamp \
+          --namespace headlamp \
+          --create-namespace
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Configure Headlamp ingress and admin
+      ansible.builtin.shell: |
+        kubectl create serviceaccount headlamp-admin \
+          -n headlamp --dry-run=client -o yaml | kubectl apply -f -
+
+        kubectl create clusterrolebinding headlamp-admin \
+          --clusterrole=cluster-admin \
+          --serviceaccount=headlamp:headlamp-admin \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+        cat <<YAML | kubectl apply -f -
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: headlamp
+          namespace: headlamp
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+        spec:
+          ingressClassName: traefik
+          tls:
+            - hosts:
+                - headlamp.{{ domain }}
+              secretName: headlamp-tls
+          rules:
+            - host: headlamp.{{ domain }}
+              http:
+                paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: headlamp
+                        port:
+                          number: 80
+        YAML
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Install Argo CD
+      ansible.builtin.shell: |
+        helm upgrade --install argocd argo/argo-cd \
+          --namespace argocd \
+          --create-namespace
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+
+    - name: Configure Argo CD for Traefik
+      ansible.builtin.shell: |
+        kubectl patch configmap argocd-cmd-params-cm \
+          -n argocd \
+          --type merge \
+          -p '{"data":{"server.insecure":"true"}}'
+
+        kubectl rollout restart deployment argocd-server -n argocd
+
+        cat <<YAML | kubectl apply -f -
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: argocd
+          namespace: argocd
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+        spec:
+          ingressClassName: traefik
+          tls:
+            - hosts:
+                - argocd.{{ domain }}
+              secretName: argocd-tls
+          rules:
+            - host: argocd.{{ domain }}
+              http:
+                paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: argocd-server
+                        port:
+                          number: 80
+        YAML
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
