@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: react-app
-          image: ghcr.io/kevmenea/devops-final-react:latest
+          image: ghcr.io/kevmenea/devops-final-react:7f81ba74749af7a9d538353baedafeb5a3540c3e
           imagePullPolicy: Always
           ports:
             - containerPort: 80
