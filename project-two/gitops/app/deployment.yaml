@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-final-react
+  namespace: devops-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: devops-final-react
+  template:
+    metadata:
+      labels:
+        app: devops-final-react
+    spec:
+      containers:
+        - name: react-app
+          image: ghcr.io/kevmenea/devops-final-react:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
